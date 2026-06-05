@@ -1,9 +1,9 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
+RUN apk add --no-cache python3 make g++
+COPY admin-service/package.json ./
 COPY shared ./shared
-COPY admin-service ./admin-service
-WORKDIR /app/admin-service
-RUN npm install
+RUN npm install --omit=dev
+COPY admin-service .
 EXPOSE 4007
-CMD ["npm", "start"]
+CMD ["node", "src/index.js"]
