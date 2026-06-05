@@ -1,9 +1,10 @@
 FROM node:20-alpine
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
-COPY support-service/package.json ./
-COPY shared ./shared
+COPY shared ./services/shared
+COPY services/support-service/package.json ./services/support-service/
+WORKDIR /app/services/support-service
 RUN npm install --omit=dev
-COPY support-service .
+COPY services/support-service .
 EXPOSE 4009
 CMD ["node", "src/index.js"]

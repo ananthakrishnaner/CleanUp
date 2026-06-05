@@ -1,9 +1,10 @@
 FROM node:20-alpine
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
-COPY cleaner-service/package.json ./
-COPY shared ./shared
+COPY shared ./services/shared
+COPY services/cleaner-service/package.json ./services/cleaner-service/
+WORKDIR /app/services/cleaner-service
 RUN npm install --omit=dev
-COPY cleaner-service .
+COPY services/cleaner-service .
 EXPOSE 4003
 CMD ["node", "src/index.js"]
