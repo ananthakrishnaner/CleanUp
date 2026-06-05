@@ -1,0 +1,17 @@
+{
+  "name": "@cleanup/auth-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@cleanup/shared": "file:../shared",
+    "bcryptjs": "^2.4.3",
+    "mongoose": "^8.6.0",
+    "zod": "^3.23.8"
+  }
+}

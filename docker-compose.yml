@@ -1,0 +1,257 @@
+version: "3.9"
+
+# CleanUp — full local stack
+# Bring up: docker compose up -d --build
+# Seed:     docker compose exec auth-service node scripts/seed.js
+# Tear down:docker compose down -v
+
+networks:
+  cleanup_net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  uploads_data:
+  frontend_build:
+
+services:
+  # ─── 1. API Gateway ────────────────────────────────────────────────
+  nginx-proxy:
+    image: nginx:1.27-alpine
+    container_name: cleanup_nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - frontend_build:/usr/share/nginx/html:ro
+    depends_on:
+      - frontend
+      - auth-service
+      - user-service
+      - cleaner-service
+      - booking-service
+      - payment-service
+      - notification-service
+      - admin-service
+      - config-service
+      - support-service
+      - chat-service
+      - review-service
+      - promo-service
+      - loyalty-service
+      - analytics-service
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 2. Frontend (static build served by Nginx) ────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cleanup_frontend
+    volumes:
+      - frontend_build:/app/dist
+    networks: [cleanup_net]
+    restart: "no"
+    command: ["sh", "-c", "npx expo export --platform web --output-dir dist && cp -r dist/* /app/dist/ && tail -f /dev/null"]
+
+  # ─── 3. MongoDB ────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: cleanup_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    ports:
+      - "27017:27017"
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 4. Auth service ───────────────────────────────────────────────
+  auth-service:
+    build: ./services/auth-service
+    container_name: cleanup_auth
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: auth_db
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 5. User service ───────────────────────────────────────────────
+  user-service:
+    build: ./services/user-service
+    container_name: cleanup_user
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: user_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      AUTH_SERVICE_URL: http://auth-service:4001
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 6. Cleaner service ────────────────────────────────────────────
+  cleaner-service:
+    build: ./services/cleaner-service
+    container_name: cleanup_cleaner
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: cleaner_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      AUTH_SERVICE_URL: http://auth-service:4001
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 7. Booking service ────────────────────────────────────────────
+  booking-service:
+    build: ./services/booking-service
+    container_name: cleanup_booking
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: booking_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      AUTH_SERVICE_URL: http://auth-service:4001
+      CLEANER_SERVICE_URL: http://cleaner-service:4003
+      NOTIFICATION_SERVICE_URL: http://notification-service:4006
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 8. Payment service ────────────────────────────────────────────
+  payment-service:
+    build: ./services/payment-service
+    container_name: cleanup_payment
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: payment_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 9. Notification service ───────────────────────────────────────
+  notification-service:
+    build: ./services/notification-service
+    container_name: cleanup_notification
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: notif_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      CONFIG_SERVICE_URL: http://config-service:4008
+      CONFIG_ENC_KEY: ${CONFIG_ENC_KEY}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 10. Admin service ─────────────────────────────────────────────
+  admin-service:
+    build: ./services/admin-service
+    container_name: cleanup_admin
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: admin_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      AUTH_SERVICE_URL: http://auth-service:4001
+      NOTIFICATION_SERVICE_URL: http://notification-service:4006
+      CONFIG_SERVICE_URL: http://config-service:4008
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 11. Config service ────────────────────────────────────────────
+  config-service:
+    build: ./services/config-service
+    container_name: cleanup_config
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: config_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      CONFIG_ENC_KEY: ${CONFIG_ENC_KEY}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 12. Support service ───────────────────────────────────────────
+  support-service:
+    build: ./services/support-service
+    container_name: cleanup_support
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: support_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+      NOTIFICATION_SERVICE_URL: http://notification-service:4006
+    volumes:
+      - uploads_data:/app/uploads
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 13. Chat service ──────────────────────────────────────────────
+  chat-service:
+    build: ./services/chat-service
+    container_name: cleanup_chat
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: chat_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 14. Review service ────────────────────────────────────────────
+  review-service:
+    build: ./services/review-service
+    container_name: cleanup_review
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: review_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 15. Promo service ─────────────────────────────────────────────
+  promo-service:
+    build: ./services/promo-service
+    container_name: cleanup_promo
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: promo_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 16. Loyalty service ───────────────────────────────────────────
+  loyalty-service:
+    build: ./services/loyalty-service
+    container_name: cleanup_loyalty
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: loyalty_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
+  # ─── 17. Analytics service ─────────────────────────────────────────
+  analytics-service:
+    build: ./services/analytics-service
+    container_name: cleanup_analytics
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: analytics_db
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL}
+    networks: [cleanup_net]
+    restart: unless-stopped
+
