@@ -30,97 +30,37 @@ CleanUp is an Urban Company–inspired, client-oriented cleaning service marketp
 
 ## Architecture
 
+Every incoming request initially lands on the **Nginx Proxy** (API Gateway). The proxy is responsible for routing all traffic. For protected API routes, Nginx delegates authentication to the **auth-service** using the `auth_request` module. Only after the `auth-service` validates the token does Nginx route the request to the downstream microservices, injecting the verified user identity into the headers.
+
 ```mermaid
-flowchart LR
-  subgraph FE [Frontend]
-    APP["React Native Web<br/>(browser, mobile-responsive)"]
+flowchart TD
+  Client["Client App"] -->|HTTPS| Proxy["Nginx Proxy / API Gateway (:80)"]
+  
+  subgraph Auth Flow
+    Proxy -- "1. auth_request /auth-verify" --> AuthSvc["auth-service (:4001)"]
+    AuthSvc -- "2. Valid JWT (Returns X-User-* headers)" --> Proxy
+  end
+  
+  subgraph Microservices Routing
+    Proxy -- "3. Route to Target (with injected headers)" --> UserSvc["user-service (:4002)"]
+    Proxy -- "3. Route to Target" --> CleanerSvc["cleaner-service (:4003)"]
+    Proxy -- "3. Route to Target" --> BookingSvc["booking-service (:4004)"]
+    Proxy -- "3. Route to Target" --> PaymentSvc["payment-service (:4005)"]
+    Proxy -- "3. Route to Target" --> OtherSvc["... other microservices"]
   end
 
-  subgraph GW [Gateway]
-    NGINX["Nginx<br/>API Gateway · Rate-limit · SSL"]
-  end
-
-  subgraph MS [Microservices]
-    A[auth-service :4001]
-    U[user-service :4002]
-    C[cleaner-service :4003]
-    B[booking-service :4004]
-    P[payment-service :4005]
-    N[notification-service :4006]
-    AD[admin-service :4007]
-    CF[config-service :4008]
-    S[support-service :4009]
-    CH[chat-service :4010]
-    R[review-service :4011]
-    PR[promo-service :4012]
-    L[loyalty-service :4013]
-    AN[analytics-service :4014]
-  end
-
-  subgraph DB [Databases (MongoDB - one DB per service)]
-    DA[(auth_db)]  ; DU[(user_db)]  ; DC[(cleaner_db)]
-    DB2[(book_db)] ; DP[(pay_db)]   ; DN[(notif_db)]
-    DAD[(adm_db)]  ; DCF[(cfg_db)]  ; DS[(support_db)]
-    DCH[(chat_db)] ; DR[(review_db)]; DPR[(promo_db)]
-    DL[(loyalty_db)]; DAN[(analytics_db)]
-  end
-
-  APP <-->|HTTPS · JWT| NGINX
-  NGINX --> A & U & C & B & P & N & AD & CF & S & CH & R & PR & L & AN
-  A --- DA
-  U --- DU
-  C --- DC
-  B --- DB2
-  P --- DP
-  N --- DN
-  AD --- DAD
-  CF --- DCF
-  S --- DS
-  CH --- DCH
-  R --- DR
-  PR --- DPR
-  L --- DL
-  AN --- DAN
-```
-
-ASCII fallback (terminals / non-rendering viewers):
-
-```
-                          ┌──────────────────────────────────────────────┐
-                          │          CLIENT  (Browser / RN App)          │
-                          │   React Native (Web) — mobile-first, AAA11y  │
-                          └──────────────────────┬───────────────────────┘
-                                                 │ HTTPS · JWT
-                                                 ▼
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                          NGINX  API GATEWAY  (proxy)                              │
-│  routing · rate-limit · SSL · static frontend · /api/*  →  microservice          │
-└───┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──┘
-    ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼
-┌───────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐ ┌────────┐
-│ auth  │ │ users  │ │cleaners │ │bookings │ │payments │ │ notif.  │ │ admin  │ │ config │
-│ :4001 │ │ :4002  │ │  :4003  │ │  :4004  │ │  :4005  │ │  :4006  │ │ :4007  │ │ :4008  │
-└───┬───┘ └───┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └───┬────┘ └───┬────┘
-    ▼         ▼           ▼           ▼           ▼           ▼          ▼          ▼
-┌───────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌────────┐ ┌────────┐
-│auth_db│ │user_db │ │clean_db │ │book_db  │ │pay_db   │ │notif_db │ │adm_db  │ │cfg_db  │
-└───────┘ └────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘ └────────┘ └────────┘
-
-        ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
-        │  support   │  │    chat    │  │  reviews   │  │   promo    │  │  loyalty   │
-        │   :4009    │  │   :4010    │  │   :4011    │  │   :4012    │  │   :4013    │
-        └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
-              ▼               ▼               ▼               ▼               ▼
-         support_db       chat_db        review_db        promo_db       loyalty_db
-                                                       (+ analytics :4014)
+  AuthSvc -.-> AuthDB[(auth_db)]
+  UserSvc -.-> UserDB[(user_db)]
+  CleanerSvc -.-> CleanerDB[(cleaner_db)]
+  BookingSvc -.-> BookingDB[(book_db)]
 ```
 
 **Key principles**
-- One **container per service** — true microservice isolation.
-- One **MongoDB database per service** — no shared schemas, no cross-service joins.
-- **Nginx** is the only public entry point; it does routing, rate-limiting, SSL termination, and serves the built frontend.
-- All **inter-service calls** are REST over the internal Docker network.
-- **No business secrets in environment variables in production** — credentials for SMS / push / email providers live in `config-service` and are managed from the Admin Config UI (encrypted at rest).
+- **Nginx Proxy is the single entry point**: All external requests hit Nginx first. It handles routing, rate-limiting, and serving the built frontend.
+- **Centralized Authentication**: Nginx uses `auth_request` to force the `auth-service` to validate every request before it reaches other services. This ensures secure authorization checks cannot be bypassed.
+- **One container per service** — true microservice isolation.
+- **One MongoDB database per service** — no shared schemas, no cross-service joins.
+- All inter-service calls are REST over the internal Docker network, falling back to local JWT checks if bypassing Nginx internally.
 
 ---
 
