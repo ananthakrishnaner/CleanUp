@@ -1,8 +1,19 @@
-const http = require('http');
-const server = http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end('Dummy review-service running');
-});
-// Start on whatever PORT is passed or 4000
-const port = process.env.PORT || 4000;
-server.listen(port, '0.0.0.0', () => console.log('review-service running on ' + port));
+// services/review-service/src/index.js
+const { createApp } = require('@cleanup/shared/app');
+const { connect }   = require('@cleanup/shared/db');
+const logger        = require('@cleanup/shared/logger');
+const reviewRoutes  = require('./routes/reviews');
+
+const PORT = Number(process.env.PORT || 4011);
+const NAME = 'review-service';
+
+(async () => {
+  try {
+    await connect(process.env.MONGO_URI, process.env.MONGO_DB || 'review_db');
+  } catch (e) {
+    logger.error('mongo.connect.failed', { error: e.message });
+    process.exit(1);
+  }
+  const app = createApp({ name: NAME, routes: reviewRoutes });
+  app.listen(PORT, '0.0.0.0', () => logger.info(`listening on :${PORT}`, { service: NAME }));
+})();
