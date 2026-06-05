@@ -76,8 +76,8 @@ services:
   # ─── 4. Auth service ───────────────────────────────────────────────
   auth-service:
     build:
-      context: ./services
-      dockerfile: auth-service/Dockerfile
+      context: .
+      dockerfile: services/auth-service/Dockerfile
     container_name: cleanup_auth
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -92,8 +92,8 @@ services:
   # ─── 5. User service ───────────────────────────────────────────────
   user-service:
     build:
-      context: ./services
-      dockerfile: user-service/Dockerfile
+      context: .
+      dockerfile: services/user-service/Dockerfile
     container_name: cleanup_user
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -107,8 +107,8 @@ services:
   # ─── 6. Cleaner service ────────────────────────────────────────────
   cleaner-service:
     build:
-      context: ./services
-      dockerfile: cleaner-service/Dockerfile
+      context: .
+      dockerfile: services/cleaner-service/Dockerfile
     container_name: cleanup_cleaner
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -122,8 +122,8 @@ services:
   # ─── 7. Booking service ────────────────────────────────────────────
   booking-service:
     build:
-      context: ./services
-      dockerfile: booking-service/Dockerfile
+      context: .
+      dockerfile: services/booking-service/Dockerfile
     container_name: cleanup_booking
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -139,8 +139,8 @@ services:
   # ─── 8. Payment service ────────────────────────────────────────────
   payment-service:
     build:
-      context: ./services
-      dockerfile: payment-service/Dockerfile
+      context: .
+      dockerfile: services/payment-service/Dockerfile
     container_name: cleanup_payment
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -153,8 +153,8 @@ services:
   # ─── 9. Notification service ───────────────────────────────────────
   notification-service:
     build:
-      context: ./services
-      dockerfile: notification-service/Dockerfile
+      context: .
+      dockerfile: services/notification-service/Dockerfile
     container_name: cleanup_notification
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -169,8 +169,8 @@ services:
   # ─── 10. Admin service ─────────────────────────────────────────────
   admin-service:
     build:
-      context: ./services
-      dockerfile: admin-service/Dockerfile
+      context: .
+      dockerfile: services/admin-service/Dockerfile
     container_name: cleanup_admin
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -186,8 +186,8 @@ services:
   # ─── 11. Config service ────────────────────────────────────────────
   config-service:
     build:
-      context: ./services
-      dockerfile: config-service/Dockerfile
+      context: .
+      dockerfile: services/config-service/Dockerfile
     container_name: cleanup_config
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -201,8 +201,8 @@ services:
   # ─── 12. Support service ───────────────────────────────────────────
   support-service:
     build:
-      context: ./services
-      dockerfile: support-service/Dockerfile
+      context: .
+      dockerfile: services/support-service/Dockerfile
     container_name: cleanup_support
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -218,8 +218,8 @@ services:
   # ─── 13. Chat service ──────────────────────────────────────────────
   chat-service:
     build:
-      context: ./services
-      dockerfile: chat-service/Dockerfile
+      context: .
+      dockerfile: services/chat-service/Dockerfile
     container_name: cleanup_chat
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -232,8 +232,8 @@ services:
   # ─── 14. Review service ────────────────────────────────────────────
   review-service:
     build:
-      context: ./services
-      dockerfile: review-service/Dockerfile
+      context: .
+      dockerfile: services/review-service/Dockerfile
     container_name: cleanup_review
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -246,8 +246,8 @@ services:
   # ─── 15. Promo service ─────────────────────────────────────────────
   promo-service:
     build:
-      context: ./services
-      dockerfile: promo-service/Dockerfile
+      context: .
+      dockerfile: services/promo-service/Dockerfile
     container_name: cleanup_promo
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -260,8 +260,8 @@ services:
   # ─── 16. Loyalty service ───────────────────────────────────────────
   loyalty-service:
     build:
-      context: ./services
-      dockerfile: loyalty-service/Dockerfile
+      context: .
+      dockerfile: services/loyalty-service/Dockerfile
     container_name: cleanup_loyalty
     environment:
       MONGO_URI: ${MONGO_URI}
@@ -274,8 +274,8 @@ services:
   # ─── 17. Analytics service ─────────────────────────────────────────
   analytics-service:
     build:
-      context: ./services
-      dockerfile: analytics-service/Dockerfile
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
     container_name: cleanup_analytics
     environment:
       MONGO_URI: ${MONGO_URI}
