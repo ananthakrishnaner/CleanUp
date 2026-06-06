@@ -22,8 +22,8 @@ COPY services/backend /app/services/backend/
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S app -u 1001 && \
-    chown -R app:app /app
+    adduser -S app -u 1001 -G nodejs && \
+    chown -R app:nodejs /app
 USER app
 
 # Health check
