@@ -4,11 +4,14 @@
   "private": true,
   "type": "commonjs",
   "main": "src/index.js",
-  "scripts": { "start": "node src/index.js" },
+  "scripts": {
+    "start": "node src/index.js"
+  },
   "dependencies": {
     "@cleanup/shared": "file:../shared",
     "mongoose": "^8.6.0",
     "zod": "^3.23.8",
-    "axios": "^1.7.2"
+    "axios": "^1.7.2",
+    "express": "^4.19.2"
   }
 }
