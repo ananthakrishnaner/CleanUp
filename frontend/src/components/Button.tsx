@@ -3,11 +3,19 @@ import { TouchableOpacity, ActivityIndicator, StyleSheet, ViewStyle, TextStyle }
 import { Typography } from './Typography';
 import { colors, spacing, radius, shadows } from '../theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'ghost'
+  | 'danger'
+  | 'success'
+  | 'outline'
+  | 'link';
+
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 export interface ButtonProps {
-  title: string;
+  children: React.ReactNode;
   onPress?: () => void;
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -15,10 +23,11 @@ export interface ButtonProps {
   loading?: boolean;
   fullWidth?: boolean;
   style?: ViewStyle;
+  textStyle?: TextStyle;
 }
 
 export const Button: React.FC<ButtonProps> = ({
-  title,
+  children,
   onPress,
   variant = 'primary',
   size = 'md',
@@ -26,6 +35,7 @@ export const Button: React.FC<ButtonProps> = ({
   loading = false,
   fullWidth = false,
   style,
+  textStyle,
 }) => {
   const containerStyle = [
     styles.container,
@@ -36,28 +46,54 @@ export const Button: React.FC<ButtonProps> = ({
     style,
   ];
 
-  const textColor = disabled
-    ? colors.neutral[300]
-    : variant === 'primary' || variant === 'danger'
-    ? colors.neutral[0]
-    : variant === 'secondary'
-    ? colors.primary[600]
-    : colors.neutral[700];
+  const getTextColor = () => {
+    if (disabled) return colors.neutral[300];
+
+    switch (variant) {
+      case 'primary':
+      case 'danger':
+      case 'success':
+        return colors.neutral[0];
+      case 'secondary':
+        return colors.neutral[700];
+      case 'outline':
+        return colors.primary[500];
+      case 'link':
+        return colors.primary[500];
+      case 'ghost':
+        return colors.neutral[700];
+      default:
+        return colors.neutral[0];
+    }
+  };
+
+  const textVariant = size === 'xs'
+    ? 'label.md'
+    : size === 'sm'
+    ? 'label.lg'
+    : 'button';
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <ActivityIndicator
+          color={getTextColor()}
+          size={size === 'xs' || size === 'sm' ? 'small' : 'large'}
+        />
+      );
+    }
+
+    return children;
+  };
 
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
+      activeOpacity={variant === 'ghost' || variant === 'outline' || variant === 'link' ? 0.7 : 0.8}
       onPress={onPress}
       disabled={disabled || loading}
       style={containerStyle}
     >
-      {loading ? (
-        <ActivityIndicator color={textColor} size="small" />
-      ) : (
-        <Typography variant="label.lg" color={textColor} align="center">
-          {title}
-        </Typography>
-      )}
+      {renderContent()}
     </TouchableOpacity>
   );
 };
@@ -66,44 +102,84 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: radius.pill,
+    borderRadius: radius.lg,
     flexDirection: 'row',
+    position: 'relative',
+    overflow: 'hidden',
   },
   fullWidth: {
     width: '100%',
   },
-  smContainer: {
+  // Size variants
+  xsContainer: {
     paddingVertical: spacing[2],
     paddingHorizontal: spacing[4],
-    minHeight: 32,
+    minHeight: 28,
+    borderRadius: radius.sm,
+  },
+  smContainer: {
+    paddingVertical: spacing[2.5],
+    paddingHorizontal: spacing[5],
+    minHeight: 36,
+    borderRadius: radius.sm,
   },
   mdContainer: {
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[6],
     minHeight: 44,
+    borderRadius: radius.md,
   },
   lgContainer: {
     paddingVertical: spacing[4],
     paddingHorizontal: spacing[8],
-    minHeight: 56,
+    minHeight: 52,
+    borderRadius: radius.lg,
   },
+  xlContainer: {
+    paddingVertical: spacing[5],
+    paddingHorizontal: spacing[10],
+    minHeight: 64,
+    borderRadius: radius.lg,
+  },
+  // Variant containers
   primaryContainer: {
     backgroundColor: colors.primary[500],
-    ...shadows.e1,
+    ...shadows.base,
   },
   secondaryContainer: {
     backgroundColor: colors.primary[50],
+    ...shadows.sm,
   },
   ghostContainer: {
     backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.neutral[300],
   },
   dangerContainer: {
     backgroundColor: colors.danger[500],
+    ...shadows.base,
+  },
+  successContainer: {
+    backgroundColor: colors.success[500],
+    ...shadows.base,
+  },
+  outlineContainer: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary[500],
+    ...shadows.none,
+  },
+  linkContainer: {
+    backgroundColor: 'transparent',
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    minHeight: 'auto',
+    ...shadows.none,
   },
   disabledContainer: {
     backgroundColor: colors.neutral[100],
-    shadowOpacity: 0,
-    elevation: 0,
-    boxShadow: 'none',
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+    opacity: 0.6,
   },
 });

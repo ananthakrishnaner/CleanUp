@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import client from '../../api/client';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { Typography } from '../../components/Typography';
+import { colors, spacing, shadows, radius } from '../../theme';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }: any) {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -18,12 +24,12 @@ export default function LoginScreen({ navigation }: any) {
       // Assuming Nginx routes /api/auth/login to auth-service
       const res = await client.post('/auth/login', { username, password });
       const { token } = res.data;
-      
+
       // Fetch user profile with the token
       const meRes = await client.get('/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setAuth(token, meRes.data);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed');
@@ -34,32 +40,68 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
-      
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      
-      <TextInput
-        style={styles.input}
-        placeholder="Username"
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Login</Text>}
-      </TouchableOpacity>
+      {/* Hero Section */}
+      <View style={styles.hero}>
+        <View style={styles.heroOverlay} />
+        <View style={styles.heroContent}>
+          <Typography variant="display.xl" style={styles.heroTitle}>
+            Welcome Back
+          </Typography>
+          <Typography variant="body.lg" style={styles.heroSubtitle}>
+            Book trusted home cleaners in minutes
+          </Typography>
+        </View>
+      </View>
 
-      <TouchableOpacity style={styles.linkButton} onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.linkText}>Don't have an account? Register</Text>
-      </TouchableOpacity>
+      {/* Login Form */}
+      <View style={styles.formContainer}>
+        <View style={styles.formContent}>
+          {error && (
+            <Typography variant="caption" color={colors.danger[500]} style={styles.errorText}>
+              {error}
+            </Typography>
+          )}
+
+          <Input
+            label="Username"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            style={styles.input}
+            leftIcon={
+              <Typography variant="label.lg" color={colors.neutral[500]}>@</Typography>
+            }
+          />
+
+          <Input
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            style={styles.input}
+            showPasswordToggle
+          />
+
+          <Button
+            title="Login"
+            onPress={handleLogin}
+            loading={loading}
+            style={styles.button}
+            variant="primary"
+          />
+
+          <View style={styles.footer}>
+            <Typography variant="label.md" color={colors.neutral[700]}>
+              Don't have an account?
+            </Typography>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Typography variant="label.md" color={colors.primary[500]} style={styles.linkText}>
+                Register
+              </Typography>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -67,49 +109,81 @@ export default function LoginScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FBFD', // neutral.50
-    justifyContent: 'center',
-    padding: 32,
+    backgroundColor: colors.neutral[0],
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0F1E2A', // neutral.900
-    marginBottom: 32,
+  hero: {
+    width,
+    height: height * 0.4,
+    backgroundColor: colors.primary.lightGradient,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.overlay,
+    borderRadius: radius.xl,
+  },
+  heroContent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing[8],
+  },
+  heroTitle: {
+    color: colors.neutral[0],
     textAlign: 'center',
+    marginBottom: spacing[2],
+  },
+  heroSubtitle: {
+    color: colors.neutral[0],
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  formContainer: {
+    flex: 1,
+    marginTop: -spacing[12],
+    marginHorizontal: spacing[6],
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    ...shadows.lg,
+  },
+  formContent: {
+    backgroundColor: colors.neutral[0],
+    padding: spacing[8],
+    paddingTop: spacing[12],
   },
   input: {
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    fontSize: 16,
+    marginBottom: spacing[6],
   },
   button: {
-    backgroundColor: '#2BA3EC', // primary.500
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    marginTop: 24,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#2BA3EC',
-    fontSize: 14,
+    marginTop: spacing[6],
+    marginBottom: spacing[4],
   },
   errorText: {
-    color: '#E5484D', // danger.500
-    marginBottom: 16,
     textAlign: 'center',
-  }
+    marginBottom: spacing[4],
+    color: colors.danger[500],
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing[6],
+    paddingTop: spacing[6],
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral[200],
+  },
+  linkText: {
+    marginLeft: spacing[1],
+  },
 });
