@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, StatusBar } from 'react-native';
-import Navbar from '../../components/Navbar';
-import Hero from '../../components/Hero';
-import WhyChooseUs from '../../components/WhyChooseUs';
-import Testimonials from '../../components/Testimonials';
-import Footer from '../../components/Footer';
+import ProfessionalNavbar from '../../components/ProfessionalNavbar';
+import ProfessionalHero from '../../components/ProfessionalHero';
+import ProfessionalFeatures from '../../components/ProfessionalFeatures';
+import ProfessionalTestimonials from '../../components/ProfessionalTestimonials';
+import ProfessionalFooter from '../../components/ProfessionalFooter';
 
 export default function ClientHomeScreen() {
   const [searchQuery, setSearchQuery] = useState('Koramangala, Bangalore');
@@ -13,11 +13,17 @@ export default function ClientHomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        <Navbar />
-        <Hero searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-        <WhyChooseUs />
-        <Testimonials />
-        <Footer />
+        <ProfessionalNavbar
+          location={searchQuery}
+          setLocation={setSearchQuery}
+        />
+        <ProfessionalHero
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+        <ProfessionalFeatures />
+        <ProfessionalTestimonials />
+        <ProfessionalFooter />
       </ScrollView>
     </View>
   );
@@ -26,6 +32,6 @@ export default function ClientHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f8f9fa',
   },
 });
