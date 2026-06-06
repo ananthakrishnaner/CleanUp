@@ -15,7 +15,7 @@ COPY services/backend/package*.json /app/services/backend/
 WORKDIR /app/services/backend
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy source code
 COPY services/backend /app/services/backend/
