@@ -7,9 +7,13 @@ import PublicNavigator from './PublicNavigator';
 import ClientNavigator from './ClientNavigator';
 import CleanerNavigator from './CleanerNavigator';
 import AdminNavigator from './AdminNavigator';
+import ClientHomeScreen from '../screens/Client/ClientHomeScreen';
 import { ProtectedActionProvider } from '../components/ProtectedAction';
 
 const Stack = createNativeStackNavigator();
+
+// Default to client dashboard (no auth required)
+const DEFAULT_SCREEN = ClientHomeScreen;
 
 export default function RootNavigator() {
   const user = useAuthStore((state) => state.user);
@@ -19,6 +23,7 @@ export default function RootNavigator() {
       <Suspense fallback={null}>
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="DefaultApp" component={DEFAULT_SCREEN} />
             {!user ? (
               <Stack.Screen name="PublicApp" component={PublicNavigator} />
             ) : user.role === 'client' ? (
