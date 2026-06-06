@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface ProtectedActionContextType {
@@ -56,7 +55,7 @@ export const ProtectedActionProvider: React.FC<{ children: React.ReactNode }> = 
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Book Your Cleaning Service</Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={24} color="#0F1E2A" />
+                <Text style={styles.closeButton}>×</Text>
               </TouchableOpacity>
             </View>
 
@@ -166,5 +165,10 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 16,
     fontWeight: '500',
+  },
+  closeButton: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0F1E2A',
   },
 });

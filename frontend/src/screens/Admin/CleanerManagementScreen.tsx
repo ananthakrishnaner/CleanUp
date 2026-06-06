@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import client from '../../api/client';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export default function CleanerManagementScreen() {
@@ -68,7 +67,7 @@ export default function CleanerManagementScreen() {
           style={styles.addButton}
           onPress={() => setShowModal(true)}
         >
-          <Ionicons name="add" size={20} color="#FFF" />
+          <Text style={styles.addButtonIcon}>+</Text>
           <Text style={styles.addButtonText}>Add Cleaner</Text>
         </TouchableOpacity>
       </View>
@@ -98,7 +97,7 @@ export default function CleanerManagementScreen() {
           ))}
           {cleaners.length === 0 && (
             <View style={styles.emptyState}>
-              <Ionicons name="people" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyStateIcon}>👥</Text>
               <Text style={styles.emptyStateText}>No cleaners registered</Text>
             </View>
           )}
@@ -114,7 +113,7 @@ export default function CleanerManagementScreen() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Register New Cleaner</Text>
             <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Ionicons name="close" size={24} color="#0F1E2A" />
+              <Text style={styles.closeButton}>×</Text>
             </TouchableOpacity>
           </View>
 
@@ -311,5 +310,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
-  }
+  },
+  addButtonIcon: {
+    fontSize: 20,
+    color: '#FFF',
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+  },
+  closeButton: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0F1E2A',
+  },
 });
