@@ -3,6 +3,7 @@ const { createApp } = require('@cleanup/shared/app');
 const { connect }   = require('@cleanup/shared/db');
 const logger        = require('@cleanup/shared/logger');
 const adminRoutes   = require('./routes/admin');
+const cleanerRoutes = require('./routes/cleaner');
 
 const PORT = Number(process.env.PORT || 4007);
 const NAME = 'admin-service';
@@ -14,6 +15,6 @@ const NAME = 'admin-service';
     logger.error('mongo.connect.failed', { error: e.message });
     process.exit(1);
   }
-  const app = createApp({ name: NAME, routes: adminRoutes });
+  const app = createApp({ name: NAME, routes: [adminRoutes, cleanerRoutes] });
   app.listen(PORT, '0.0.0.0', () => logger.info(`listening on :${PORT}`, { service: NAME }));
 })();

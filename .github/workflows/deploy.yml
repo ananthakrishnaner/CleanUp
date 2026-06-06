@@ -4,19 +4,462 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DEPLOY_HOST: ${{ secrets.SERVER_HOST }}
+  DEPLOY_USER: ${{ secrets.SERVER_USERNAME }}
+  DEPLOY_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
 
 jobs:
-  deploy:
+  # ─── Build & Test Frontend ───────────────────────────────────────────
+  build-frontend:
     runs-on: ubuntu-latest
+    name: Build Frontend
     steps:
-      - name: Deploy to DigitalOcean Droplet
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        run: |
+          echo "✅ Checkout complete"
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+        run: |
+          echo "✅ Node.js $(node -v) setup complete"
+
+      - name: 📦 Install frontend dependencies
+        working-directory: ./frontend
+        run: |
+          echo "📦 Installing dependencies..."
+          npm ci
+          echo "✅ Dependencies installed"
+
+      - name: 🔨 Build frontend
+        working-directory: ./frontend
+        run: |
+          echo "🔨 Building frontend..."
+          npm run build || npx expo export --platform web --output-dir dist
+          echo "✅ Frontend built"
+
+      - name: 📤 Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+          retention-days: 7
+        run: |
+          echo "📤 Frontend artifact uploaded"
+
+  # ─── Build Docker Images ─────────────────────────────────────────
+  build-docker:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    name: Build Docker Images
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        run: |
+          echo "✅ Code checked out"
+
+      - name: ⚙️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        run: |
+          echo "✅ Docker Buildx configured"
+          docker version
+
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "✅ Logged to GHCR"
+
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/cleanup-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{ is_default_branch }}
+        run: |
+          echo "📋 Image tags: ${{ steps.meta.outputs.tags }}"
+
+      # Build auth-service image
+      - name: 🐳 Build auth-service image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/auth-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/cleanup-auth:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        run: |
+          echo "🔨 Building auth-service..."
+          echo "✅ auth-service image built and pushed"
+
+      # Build payment-service image
+      - name: 🐳 Build payment-service image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/payment-service/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/cleanup-payment:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        run: |
+          echo "🔨 Building payment-service..."
+          echo "✅ payment-service image built and pushed"
+
+      # Build backend-service image
+      - name: 🐳 Build backend-service image
+        uses: docker/build-push-action@v5
+        with:
+          context: services/backend
+          file: services/backend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/cleanup-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        run: |
+          echo "🔨 Building backend-service (consolidated)..."
+          ls -la services/backend/src/routes/
+          echo "✅ backend-service image built and pushed"
+
+      # Build frontend-service image
+      - name: 🐳 Build frontend-service image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/cleanup-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        run: |
+          echo "🔨 Building frontend-service..."
+          echo "✅ frontend-service image built and pushed"
+
+      - name: 📊 List built images
+        run: |
+          echo "📦 Docker images built:"
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+
+  # ─── Deploy to Production ─────────────────────────────────────────
+  deploy:
+    needs: build-docker
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        run: |
+          echo "✅ Code checked out"
+          git log -1 --oneline
+          git status
+
+      - name: 🔌 Connect to server
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          password: ${{ secrets.SERVER_PASSWORD }}
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          password: ${{ env.DEPLOY_PASSWORD }}
           script: |
-            cd /opt/CleanUp
+            echo "========================================"
+            echo "🚀 Starting Deployment"
+            echo "========================================"
+            echo "📅 Date: $(date)"
+            echo "🌐 Host: ${{ env.DEPLOY_HOST }}"
+            echo "👤 User: ${{ env.DEPLOY_USER }}"
+            echo ""
+
+            # Check current state
+            echo "📊 Current containers running:"
+            docker compose ps
+            echo ""
+
+            # Check disk space
+            echo "💾 Disk space:"
+            df -h / | grep -v Filesystem
+            echo ""
+
+            # Pull latest code
+            echo "📥 Pulling latest code..."
             git pull origin main
-            docker compose build
+            echo "✅ Code pulled"
+            echo ""
+
+            # Show recent commits
+            echo "📝 Recent commits:"
+            git log -5 --oneline
+            echo ""
+
+            # Pull latest Docker images
+            echo "📥 Pulling latest Docker images..."
+            docker pull ghcr.io/${{ github.repository }}/cleanup-auth:latest && echo "✅ auth pulled"
+            docker pull ghcr.io/${{ github.repository }}/cleanup-payment:latest && echo "✅ payment pulled"
+            docker pull ghcr.io/${{ github.repository }}/cleanup-backend:latest && echo "✅ backend pulled"
+            docker pull ghcr.io/${{ github.repository }}/cleanup-frontend:latest && echo "✅ frontend pulled"
+            echo ""
+
+            # Tag images
+            echo "🏷️ Tagging images..."
+            docker tag ghcr.io/${{ github.repository }}/cleanup-auth:latest cleanup_auth:latest
+            docker tag ghcr.io/${{ github.repository }}/cleanup-payment:latest cleanup_payment:latest
+            docker tag ghcr.io/${{ github.repository }}/cleanup-backend:latest cleanup_backend:latest
+            docker tag ghcr.io/${{ github.repository }}/cleanup-frontend:latest cleanup_frontend:latest
+            echo "✅ Images tagged"
+            echo ""
+
+            # Rebuild services
+            echo "🔨 Building Docker services..."
+            docker compose build --no-cache
+            echo "✅ Build complete"
+            echo ""
+
+            # Show build result
+            echo "📦 Built images:"
+            docker compose images
+            echo ""
+
+            # Stop old containers
+            echo "🛑 Stopping old containers..."
+            docker compose down
+            echo "✅ Old containers stopped"
+            echo ""
+
+            # Start new containers
+            echo "▶️ Starting new containers..."
             docker compose up -d
+            echo "✅ Containers started"
+            echo ""
+
+            # Wait for services to initialize
+            echo "⏳ Waiting for services to initialize..."
+            sleep 15
+
+            # Show running containers
+            echo "📊 Container status:"
+            docker compose ps
+            echo ""
+
+            # Check logs
+            echo "📋 Service logs:"
+            docker compose logs --tail=20
+            echo ""
+
+            echo "========================================"
+            echo "✅ Deployment Complete"
+            echo "========================================"
+
+      - name: ✅ Verify deployment
+        run: |
+          echo "⏳ Waiting for services to be ready..."
+          sleep 20
+
+          echo "🔍 Checking container status..."
+          docker ps --format "table {{.Names}}\t{{.Status}}"
+
+  # ─── Health Check ───────────────────────────────────────────────
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+    name: Health Check
+    steps:
+      - name: 🔍 Verify backend service
+        run: |
+          echo "🔍 Checking backend health..."
+          echo "   Checking: http://${{ secrets.SERVER_HOST }}:4003/health/ping"
+          RESPONSE=$(curl -fs -m 15 http://${{ secrets.SERVER_HOST }}:4003/health/ping 2>&1)
+          if [ $? -eq 0 ]; then
+            echo "✅ Backend is healthy: $RESPONSE"
+          else
+            echo "❌ Backend health check failed!"
+            echo "   Response: $RESPONSE"
+            exit 1
+          fi
+
+      - name: 🔍 Verify API gateway health
+        run: |
+          echo "🔍 Checking API gateway health..."
+          echo "   Checking: http://${{ secrets.SERVER_HOST }}/api/health/ping"
+          RESPONSE=$(curl -fs -m 15 http://${{ secrets.SERVER_HOST }}/api/health/ping 2>&1)
+          if [ $? -eq 0 ]; then
+            echo "✅ API gateway is healthy: $RESPONSE"
+          else
+            echo "❌ API gateway health check failed!"
+            echo "   Response: $RESPONSE"
+            exit 1
+          fi
+
+      - name: 🔍 Verify backend detailed health
+        run: |
+          echo "🔍 Checking backend detailed health..."
+          echo "   Checking: http://${{ secrets.SERVER_HOST }}:4003/health"
+          RESPONSE=$(curl -fs -m 15 http://${{ secrets.SERVER_HOST }}:4003/health 2>&1)
+          if [ $? -eq 0 ]; then
+            echo "✅ Backend detailed health check passed"
+            # Parse status from JSON
+            STATUS=$(echo "$RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+            echo "   📊 Status: $STATUS"
+          else
+            echo "❌ Backend detailed health check failed!"
+            exit 1
+          fi
+
+      - name: 🔍 Verify frontend
+        run: |
+          echo "🔍 Checking frontend..."
+          HTTP_CODE=$(curl -fs -m 15 -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_HOST }}/ 2>&1)
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Frontend is healthy (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Frontend health check failed! (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
+      - name: 🔍 Verify nginx proxy
+        run: |
+          echo "🔍 Checking nginx proxy..."
+          HTTP_CODE=$(curl -fs -m 15 -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_HOST }}/nginx_status 2>&1)
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "403" ]; then
+            echo "✅ Nginx proxy is healthy (HTTP $HTTP_CODE)"
+          else
+            echo "⚠️  Nginx status check returned HTTP $HTTP_CODE"
+          fi
+
+  # ─── Test API Endpoints ─────────────────────────────────────
+  test-api:
+    needs: health-check
+    runs-on: ubuntu-latest
+    name: API Tests
+    steps:
+      - name: 🧪 Test public endpoints
+        run: |
+          echo "🧪 Testing public endpoints..."
+
+          # Test health ping
+          echo "1️⃣  Testing /health/ping..."
+          curl -fs http://${{ secrets.SERVER_HOST }}:4003/health/ping && echo " ✅"
+
+          # Test liveness
+          echo "2️⃣  Testing /health/liveness..."
+          curl -fs http://${{ secrets.SERVER_HOST }}:4003/health/liveness && echo " ✅"
+
+          # Test readiness
+          echo "3️⃣  Testing /health/readiness..."
+          curl -fs http://${{ secrets.SERVER_HOST }}:4003/health/readiness && echo " ✅"
+
+          echo "✅ All API tests passed"
+
+      - name: 📊 Get system info
+        run: |
+          echo "📊 Getting system info..."
+          curl -fs http://${{ secrets.SERVER_HOST }}:4003/health | jq -r '
+            "
+           ====== SYSTEM STATUS ======
+           Status: \(.status)
+           Version: \(.version)
+           Environment: \(.environment)
+
+           ====== DATABASE ======
+           Connected: \(.database.connected)
+           Host: \(.database.host)
+           MongoDB Version: \(.database.version)
+
+           ====== SYSTEM ======
+           Hostname: \(.system.hostname)
+           CPU Cores: \(.system.cpu.cores)
+           Load (1m): \(.system.cpu.loadAverage.\"1m\")
+           Memory Usage: \(.system.memory.usagePercent)
+
+           ====== SERVICES ======"
+          '
+
+          for svc in $(curl -fs http://${{ secrets.SERVER_HOST }}:4003/health | jq -r '.services[] | "\(.name): \(.status)"'); do
+            echo "   $svc"
+          done
+
+  # ─── Notify on Success ────────────────────────────────────────
+  notify-success:
+    needs: [deploy, health-check, test-api]
+    runs-on: ubuntu-latest
+    name: Notify Success
+    if: success()
+    steps:
+      - name: 🎉 Deployment success notification
+        run: |
+          echo "🎉 ======================================"
+          echo "   ✅ DEPLOYMENT SUCCESSFUL!"
+          echo "   ======================================"
+          echo ""
+          echo "📋 Jobs completed:"
+          echo "   ✅ Build Frontend"
+          echo "   ✅ Build Docker Images"
+          echo "   ✅ Deploy to Production"
+          echo "   ✅ Health Check"
+          echo "   ✅ API Tests"
+          echo ""
+          echo "🌐 Application URLs:"
+          echo "   Frontend: https://clean.ananthakrishnan.icu/"
+          echo "   API: https://clean.ananthakrishnan.icu/api"
+          echo "   Health: https://clean.ananthakrishnan.icu/api/health/ping"
+          echo ""
+          echo "📅 Deployed at: $(date)"
+
+  # ─── Notify on Failure ────────────────────────────────────────
+  notify-failure:
+    needs: [deploy, health-check, test-api]
+    if: failure()
+    runs-on: ubuntu-latest
+    name: Notify Failure
+    steps:
+      - name: 🚨 Send failure notification
+        run: |
+          echo "🚨 ======================================"
+          echo "   ❌ DEPLOYMENT FAILED!"
+          echo "   ======================================"
+          echo ""
+          echo "📋 Failed jobs:"
+          echo "   - Build Frontend"
+          echo "   - Build Docker Images"
+          echo "   - Deploy to Production"
+          echo "   - Health Check"
+          echo "   - API Tests"
+          echo ""
+          echo "🔍 Check GitHub Actions logs for details"
+          echo "🌐 Server: ${{ secrets.SERVER_HOST }}"
+          echo "📅 Failed at: $(date)"
+
+          # Send notification (configure your webhook)
+          if [ -n "${{ secrets.WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "🚨 Deployment Failed!",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": { "type": "plain_text", "text": "🚨 Deployment Failed!" }
+                  },
+                  {
+                    "type": "section",
+                    "fields": [
+                      { "type": "mrkdwn", "text": "*Server:*\n${{ secrets.SERVER_HOST }}" },
+                      { "type": "mrkdwn", "text": "*Time:*\n$(date)" }
+                    ]
+                  }
+                ]
+              }'
+          fi

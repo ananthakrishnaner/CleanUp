@@ -4,10 +4,11 @@
 
 [![build](https://img.shields.io/badge/build-passing-brightgreen)](#)
 [![license](https://img.shields.io/badge/license-MIT-blue)](#)
-[![version](https://img.shields.io/badge/version-0.1.0-blueviolet)](#)
+[![version](https://img.shields.io/badge/version-1.0.0-blueviolet)](#)
+[![containers](https://img.shields.io/badge/containers-6-green)](#)
 [![stack](https://img.shields.io/badge/stack-React%20Native%20(Web%20%2B%20Android)-2BA3EC)](#)
 
-CleanUp is an Urban Company–inspired, client-oriented cleaning service marketplace that connects **clients** (people who book cleanings) with **cleaners** (service providers) and is managed by **admins**. The codebase is a **React Native** monorepo (running on the web first via React Native Web) wrapped in a **microservices backend**, all orchestrated with Docker Compose.
+CleanUp is an Urban Company–inspired, client-oriented cleaning service marketplace that connects **clients** (people who book cleanings) with **cleaners** (service providers) and is managed by **admins**. The codebase is a **React Native** monorepo (running on the web first via React Native Web) wrapped in a **consolidated microservices backend**, all orchestrated with Docker Compose.
 
 > ✨ Designed to feel like stepping into a freshly cleaned home — soft sky blues, fresh mints, generous whitespace, calm motion.
 
@@ -41,26 +42,43 @@ flowchart TD
     AuthSvc -- "2. Valid JWT (Returns X-User-* headers)" --> Proxy
   end
   
-  subgraph Microservices Routing
-    Proxy -- "3. Route to Target (with injected headers)" --> UserSvc["user-service (:4002)"]
-    Proxy -- "3. Route to Target" --> CleanerSvc["cleaner-service (:4003)"]
-    Proxy -- "3. Route to Target" --> BookingSvc["booking-service (:4004)"]
-    Proxy -- "3. Route to Target" --> PaymentSvc["payment-service (:4005)"]
-    Proxy -- "3. Route to Target" --> OtherSvc["... other microservices"]
+  subgraph Container Architecture
+    Proxy -- "3. Route to Target" --> AuthSvc["auth"]
+    Proxy -- "3. Route to Target" --> PaymentSvc["payment-gateway (:4002)"]
+    Proxy -- "3. Route to Target" --> BackendSvc["backend (:4003)"]
+    Proxy -- "3. Static Files" --> FrontendSvc["frontend"]
   end
 
+  subgraph Backend Services (Consolidated)
+    BackendSvc --> "/users"["User Service"]
+    BackendSvc --> "/cleaners"["Cleaner Service"]
+    BackendSvc --> "/bookings"["Booking Service"]
+    BackendSvc --> "/notifications"["Notification Service"]
+    BackendSvc --> "/admin"["Admin Service"]
+    BackendSvc --> "/config"["Config Service"]
+    BackendSvc --> "/support"["Support Service"]
+    BackendSvc --> "/chat"["Chat Service"]
+    BackendSvc --> "/reviews"["Review Service"]
+    BackendSvc --> "/promos"["Promo Service"]
+    BackendSvc --> "/loyalty"["Loyalty Service"]
+    BackendSvc --> "/analytics"["Analytics Service"]
+    BackendSvc --> "/health"["Health Check"]
+  end
+  
+  BackendSvc -.-> MongoDB[(MongoDB :27017)]
   AuthSvc -.-> AuthDB[(auth_db)]
-  UserSvc -.-> UserDB[(user_db)]
-  CleanerSvc -.-> CleanerDB[(cleaner_db)]
-  BookingSvc -.-> BookingDB[(book_db)]
+  PaymentSvc -.-> PaymentDB[(payment_db)]
+  FrontendSvc -.-> Static[(Static Files)]
+  
+  Proxy --> APIHealth["/api/health → Backend Health"]
 ```
 
 **Key principles**
 - **Nginx Proxy is the single entry point**: All external requests hit Nginx first. It handles routing, rate-limiting, and serving the built frontend.
 - **Centralized Authentication**: Nginx uses `auth_request` to force the `auth-service` to validate every request before it reaches other services. This ensures secure authorization checks cannot be bypassed.
-- **One container per service** — true microservice isolation.
-- **One MongoDB database per service** — no shared schemas, no cross-service joins.
-- All inter-service calls are REST over the internal Docker network, falling back to local JWT checks if bypassing Nginx internally.
+- **Consolidated Backend Architecture**: Reduced from 19 to 6 containers for easier management while maintaining service separation.
+- **Single MongoDB Database**: All services use separate collections within one MongoDB instance for better resource utilization.
+- **Health Monitoring**: Comprehensive health endpoint (`/health`) provides DB status, container metrics, and service availability.
 
 ---
 
@@ -97,37 +115,92 @@ flowchart TD
 
 ---
 
-## Microservices
+## Container Architecture & Services
 
-| # | Service | Port | DB | Responsibility |
-|---|---------|------|----|----------------|
-| 1 | `auth-service` | 4001 | `auth_db` | Register, login, JWT issue/refresh, password reset |
-| 2 | `user-service` | 4002 | `user_db` | Client profiles, addresses, preferences |
-| 3 | `cleaner-service` | 4003 | `cleaner_db` | Cleaner profiles, skills, ratings, availability |
-| 4 | `booking-service` | 4004 | `book_db` | Booking lifecycle, auto-assignment, rescheduling |
-| 5 | `payment-service` | 4005 | `pay_db` | Cash ledger (MVP), gateway-agnostic interface |
-| 6 | `notification-service` | 4006 | `notif_db` | SMS / push / email dispatch (reads `config-service`) |
-| 7 | `admin-service` | 4007 | `adm_db` | Admin accounts, role permissions, audit log |
-| 8 | `config-service` | 4008 | `cfg_db` | Runtime config: SMS keys, push keys, feature flags, prices |
-| 9 | `support-service` | 4009 | `support_db` | Support tickets, SLA, escalation |
-| 10 | `chat-service` | 4010 | `chat_db` | In-app chat between cleaner ↔ client (WebSocket) |
-| 11 | `review-service` | 4011 | `review_db` | Ratings & reviews, moderation |
-| 12 | `promo-service` | 4012 | `promo_db` | Promo codes, referral bonuses |
-| 13 | `loyalty-service` | 4013 | `loyalty_db` | Loyalty points, tiers |
-| 14 | `analytics-service` | 4014 | `analytics_db` | Aggregations for admin dashboards |
-| 15 | `nginx-proxy` | 80/443 | — | API gateway, routing, rate limit, SSL, static frontend |
-| 16 | `frontend` | 3000 (internal) | — | React Native Web build, served via Nginx |
-| 17 | `mongo` | 27017 | — | All logical DBs in one container (init script) |
+### Simplified Container Structure (6 Containers)
+
+| Container | Description | Port | Routes |
+|-----------|-------------|------|--------|
+| `nginx-proxy` | API Gateway, routing, SSL, static frontend | 80, 443 | All `/api/*` → backend/auth/payment |
+| `frontend` | React Native Web build | 8081 | Static HTML/JS/CSS |
+| `mongo` | MongoDB database | 27017 | All services |
+| `auth` | Authentication (register, login, JWT) | 4001 | `/auth/*` |
+| `payment-gateway` | Payment processing | 4002 | `/payments/*` |
+| `backend` | All other 12 services merged | 4003 | `/users, /cleaners, /bookings, /notifications, /admin, /config, /support, /chat, /reviews, /promos, /loyalty, /analytics, /health` |
+
+### Backend Services (Consolidated in `backend` container)
+
+| Path | Service | Responsibility |
+|-----|---------|----------------|
+| `/health` | Health Check | DB status, container metrics, service availability |
+| `/users` | User Service | Client profiles, addresses, preferences |
+| `/cleaners` | Cleaner Service | Cleaner profiles, skills, ratings, availability |
+| `/bookings` | Booking Service | Booking lifecycle, auto-assignment, rescheduling |
+| `/notifications` | Notification Service | SMS / push / email dispatch |
+| `/admin` | Admin Service | Admin accounts, role permissions, cleaner management, audit log |
+| `/config` | Config Service | Runtime config: SMS keys, push keys, feature flags, prices |
+| `/support` | Support Service | Support tickets, SLA, escalation |
+| `/chat` | Chat Service | In-app chat between cleaner ↔ client (WebSocket) |
+| `/reviews` | Review Service | Ratings & reviews, moderation |
+| `/promos` | Promo Service | Promo codes, referral bonuses |
+| `/loyalty` | Loyalty Service | Loyalty points, tiers |
+| `/analytics` | Analytics Service | Aggregations for admin dashboards |
+
+### Health Endpoint
+
+```bash
+# Full health check (returns DB status + container metrics + all services)
+curl http://localhost:4003/health
+
+# Simple ping
+curl http://localhost:4003/health/ping
+
+# Liveness probe
+curl http://localhost:4003/health/liveness
+
+# Readiness probe (checks DB)
+curl http://localhost:4003/health/readiness
+
+# Via API Gateway
+curl http://localhost/api/health/ping
+```
+
+**Health Response Example:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-06-06T12:00:00.000Z",
+  "version": "1.0.0",
+  "services": [
+    { "name": "auth", "port": 4001, "status": "standalone" },
+    { "name": "payment", "port": 4002, "status": "standalone" },
+    { "name": "user", "path": "/users", "status": "running" },
+    ...
+  ],
+  "database": {
+    "connected": true,
+    "host": "mongo",
+    "version": "7.0.0",
+    "uptimeSeconds": 3600
+  },
+  "system": {
+    "hostname": "backend",
+    "cpu": { "cores": 4, "loadAverage": { "1m": "0.5" }},
+    "memory": { "total": "2048 MB", "usagePercent": "45%"}
+  }
+}
+```
 
 ---
 
 ## Tech Stack
 
 - **Frontend:** React Native (Web) via Expo, React Navigation, Zustand, Axios, i18next, Reanimated.
-- **Backend:** Node.js 20, Express, Mongoose, Zod, Winston, JSON Web Tokens (RS256), ws (for chat).
-- **Database:** MongoDB 7 (one logical DB per service).
+- **Backend:** Node.js 20, Express, Mongoose, Zod, Winston, JSON Web Tokens (HS256), ws (for chat).
+- **Database:** MongoDB 7 (shared across all backend services via collections).
 - **Gateway:** Nginx 1.27.
 - **Tooling:** Docker, Docker Compose, ESLint, Prettier, Vitest, supertest, Playwright (e2e), axe-core (a11y).
+- **Container Orchestration:** 6 containers (nginx-proxy, frontend, mongo, auth, payment-gateway, backend).
 
 ---
 
@@ -143,10 +216,13 @@ cp .env.example .env
 # 3. Build & start
 docker compose up -d --build
 
-# 4. Seed the first admin + sample data
-docker compose exec auth-service node scripts/seed.js
+# 4. Check health
+curl http://localhost:4003/health
 
-# 5. Open
+# 5. Seed the first admin + sample data (optional)
+docker compose exec backend node scripts/seed.js
+
+# 6. Open
 open http://localhost
 ```
 

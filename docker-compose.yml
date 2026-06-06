@@ -1,9 +1,10 @@
 version: "3.9"
 
-# CleanUp — full local stack
+# CleanUp — Simplified Container Architecture
 # Bring up: docker compose up -d --build
-# Seed:     docker compose exec auth-service node scripts/seed.js
+# Seed:     docker compose exec backend node scripts/seed.js
 # Tear down:docker compose down -v
+# Health:  curl http://localhost:4003/health
 
 networks:
   cleanup_net:
@@ -15,7 +16,7 @@ volumes:
   frontend_build:
 
 services:
-  # ─── 1. API Gateway ────────────────────────────────────────────────
+  # ─── 1. API Gateway (Nginx) ─────────────────────────────────────────
   nginx-proxy:
     image: nginx:1.27-alpine
     container_name: cleanup_nginx
@@ -28,21 +29,10 @@ services:
       - frontend_build:/usr/share/nginx/html:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
+      - backend
+      - auth
+      - payment-gateway
       - frontend
-      - auth-service
-      - user-service
-      - cleaner-service
-      - booking-service
-      - payment-service
-      - notification-service
-      - admin-service
-      - config-service
-      - support-service
-      - chat-service
-      - review-service
-      - promo-service
-      - loyalty-service
-      - analytics-service
     networks: [cleanup_net]
     restart: unless-stopped
 
@@ -73,8 +63,8 @@ services:
     networks: [cleanup_net]
     restart: unless-stopped
 
-  # ─── 4. Auth service ───────────────────────────────────────────────
-  auth-service:
+  # ─── 4. Auth Service (separate container) ─────────────────────────────
+  auth:
     build:
       context: .
       dockerfile: services/auth-service/Dockerfile
@@ -89,55 +79,8 @@ services:
     networks: [cleanup_net]
     restart: unless-stopped
 
-  # ─── 5. User service ───────────────────────────────────────────────
-  user-service:
-    build:
-      context: .
-      dockerfile: services/user-service/Dockerfile
-    container_name: cleanup_user
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: user_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-      AUTH_SERVICE_URL: http://auth-service:4001
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 6. Cleaner service ────────────────────────────────────────────
-  cleaner-service:
-    build:
-      context: .
-      dockerfile: services/cleaner-service/Dockerfile
-    container_name: cleanup_cleaner
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: cleaner_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-      AUTH_SERVICE_URL: http://auth-service:4001
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 7. Booking service ────────────────────────────────────────────
-  booking-service:
-    build:
-      context: .
-      dockerfile: services/booking-service/Dockerfile
-    container_name: cleanup_booking
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: booking_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-      AUTH_SERVICE_URL: http://auth-service:4001
-      CLEANER_SERVICE_URL: http://cleaner-service:4003
-      NOTIFICATION_SERVICE_URL: http://notification-service:4006
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 8. Payment service ────────────────────────────────────────────
-  payment-service:
+  # ─── 5. Payment Gateway (separate container) ──────────────────────────
+  payment-gateway:
     build:
       context: .
       dockerfile: services/payment-service/Dockerfile
@@ -150,138 +93,59 @@ services:
     networks: [cleanup_net]
     restart: unless-stopped
 
-  # ─── 9. Notification service ───────────────────────────────────────
-  notification-service:
+  # ─── 6. Backend Service (all other services merged) ───────────────────
+  backend:
     build:
-      context: .
-      dockerfile: services/notification-service/Dockerfile
-    container_name: cleanup_notification
+      context: services/backend
+      dockerfile: Dockerfile
+    container_name: cleanup_backend
     environment:
       MONGO_URI: ${MONGO_URI}
-      MONGO_DB: notif_db
+      MONGO_DB: cleanup_db
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       LOG_LEVEL: ${LOG_LEVEL}
-      CONFIG_SERVICE_URL: http://config-service:4008
+      AUTH_SERVICE_URL: http://auth:4001
+      PAYMENT_SERVICE_URL: http://payment-gateway:4002
+      APP_VERSION: "1.0.0"
       CONFIG_ENC_KEY: ${CONFIG_ENC_KEY}
     networks: [cleanup_net]
     restart: unless-stopped
-
-  # ─── 10. Admin service ─────────────────────────────────────────────
-  admin-service:
-    build:
-      context: .
-      dockerfile: services/admin-service/Dockerfile
-    container_name: cleanup_admin
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: admin_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-      AUTH_SERVICE_URL: http://auth-service:4001
-      NOTIFICATION_SERVICE_URL: http://notification-service:4006
-      CONFIG_SERVICE_URL: http://config-service:4008
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 11. Config service ────────────────────────────────────────────
-  config-service:
-    build:
-      context: .
-      dockerfile: services/config-service/Dockerfile
-    container_name: cleanup_config
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: config_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-      CONFIG_ENC_KEY: ${CONFIG_ENC_KEY}
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 12. Support service ───────────────────────────────────────────
-  support-service:
-    build:
-      context: .
-      dockerfile: services/support-service/Dockerfile
-    container_name: cleanup_support
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: support_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-      NOTIFICATION_SERVICE_URL: http://notification-service:4006
     volumes:
       - uploads_data:/app/uploads
-    networks: [cleanup_net]
-    restart: unless-stopped
+    ports:
+      - "4003:4003"
 
-  # ─── 13. Chat service ──────────────────────────────────────────────
-  chat-service:
-    build:
-      context: .
-      dockerfile: services/chat-service/Dockerfile
-    container_name: cleanup_chat
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: chat_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-    networks: [cleanup_net]
-    restart: unless-stopped
 
-  # ─── 14. Review service ────────────────────────────────────────────
-  review-service:
-    build:
-      context: .
-      dockerfile: services/review-service/Dockerfile
-    container_name: cleanup_review
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: review_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-    networks: [cleanup_net]
-    restart: unless-stopped
+# ─── Container Health Check Scripts ───────────────────────────────
+# Add to each service's healthcheck in the individual Dockerfiles:
+#
+# healthcheck:
+#   test: ["CMD", "wget", "-q", "--spider", "http://localhost:4003/health/ping"]
+#   interval: 30s
+#   timeout: 10s
+#   retries: 3
+#   start_period: 40s
 
-  # ─── 15. Promo service ─────────────────────────────────────────────
-  promo-service:
-    build:
-      context: .
-      dockerfile: services/promo-service/Dockerfile
-    container_name: cleanup_promo
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: promo_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 16. Loyalty service ───────────────────────────────────────────
-  loyalty-service:
-    build:
-      context: .
-      dockerfile: services/loyalty-service/Dockerfile
-    container_name: cleanup_loyalty
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: loyalty_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-    networks: [cleanup_net]
-    restart: unless-stopped
-
-  # ─── 17. Analytics service ─────────────────────────────────────────
-  analytics-service:
-    build:
-      context: .
-      dockerfile: services/analytics-service/Dockerfile
-    container_name: cleanup_analytics
-    environment:
-      MONGO_URI: ${MONGO_URI}
-      MONGO_DB: analytics_db
-      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
-      LOG_LEVEL: ${LOG_LEVEL}
-    networks: [cleanup_net]
-    restart: unless-stopped
-
+# ─── Endpoints Summary ───────────────────────────────────────────────
+# nginx-proxy:  http://localhost       -> /               (frontend)
+#               http://localhost/auth -> auth:4001
+#               http://localhost/pay   -> payment-gateway:4002
+#               http://localhost/api    -> backend:4003
+#
+# backend:      http://backend:4003
+#               ├── /health             -> Detailed health status
+#               ├── /health/ping       -> Simple ping
+#               ├── /health/liveness   -> Liveness probe
+#               ├── /health/readiness  -> Readiness probe
+#               ├── /users             -> User service
+#               ├── /cleaners          -> Cleaner service
+#               ├── /bookings          -> Booking service
+#               ├── /notifications    -> Notification service
+#               ├── /admin             -> Admin service
+#               ├── /config            -> Config service
+#               ├── /support           -> Support service
+#               ├── /chat              -> Chat service
+#               ├── /reviews          -> Review service
+#               ├── /promos            -> Promo service
+#               ├── /loyalty           -> Loyalty service
+#               └── /analytics        -> Analytics service
