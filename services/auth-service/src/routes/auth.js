@@ -10,6 +10,7 @@ const { client } = require('@cleanup/shared/http');
 const router = express.Router();
 const opts   = loadSecret({ secret: process.env.AUTH_JWT_SECRET || process.env.INTERNAL_API_SECRET });
 
+const usernameRe = /^[a-z0-9_]{3,20}$/;
 const registerSchema = z.object({
   username: z.string().regex(usernameRe, 'username must be 3-20 lowercase alphanumerics/underscore'),
   email:    z.string().email().optional(),
@@ -17,7 +18,6 @@ const registerSchema = z.object({
   password: z.string().min(8).max(72),
   role:     z.enum(['client']).default('client'),
 });
-const usernameRe = /^[a-z0-9_]{3,20}$/;
 
 const loginSchema = z.object({
   identifier: z.string().min(3), // username | email | phone
