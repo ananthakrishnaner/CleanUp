@@ -7,14 +7,18 @@ RUN apk add --no-cache dumb-init curl
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY shared ./shared
+COPY services/shared ./services/shared
+WORKDIR /app/services/shared
+RUN npm install --omit=dev
+
+COPY services/backend/package*.json /app/services/backend/
+WORKDIR /app/services/backend
 
 # Install dependencies
 RUN npm ci --only=production
 
 # Copy source code
-COPY . .
+COPY services/backend /app/services/backend/
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

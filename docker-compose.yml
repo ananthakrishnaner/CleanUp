@@ -96,8 +96,8 @@ services:
   # ─── 6. Backend Service (all other services merged) ───────────────────
   backend:
     build:
-      context: services/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/backend/Dockerfile
     container_name: cleanup_backend
     environment:
       MONGO_URI: ${MONGO_URI}
