@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: cleanup
   DEPLOY_HOST: ${{ secrets.SERVER_HOST }}
   DEPLOY_USER: ${{ secrets.SERVER_USERNAME }}
   DEPLOY_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
@@ -72,7 +72,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/cleanup-backend
+          images: ghcr.io/ananthakrishnaner/cleanup-backend
           tags: |
             type=ref,event=branch
             type=sha,prefix=
@@ -84,7 +84,7 @@ jobs:
           context: .
           file: services/auth-service/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/cleanup-auth:latest
+          tags: ghcr.io/ananthakrishnaner/cleanup-auth:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -94,7 +94,7 @@ jobs:
           context: .
           file: services/payment-service/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/cleanup-payment:latest
+          tags: ghcr.io/ananthakrishnaner/cleanup-payment:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -104,7 +104,7 @@ jobs:
           context: services/backend
           file: services/backend/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/cleanup-backend:latest
+          tags: ghcr.io/ananthakrishnaner/cleanup-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -114,7 +114,7 @@ jobs:
           context: ./frontend
           file: frontend/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/cleanup-frontend:latest
+          tags: ghcr.io/ananthakrishnaner/cleanup-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
